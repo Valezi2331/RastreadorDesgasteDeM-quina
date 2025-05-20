@@ -1,0 +1,22 @@
+Macro em VBA que automatiza a análise de desgaste de peças de máquinas pesadas , filtrando dados por série, calculando horas de uso e gerando um dashboard com projeções de vida útil.  
+
+Funcionalidades:  
+- Extrai e formata dados de uma planilha base (`Base WMS`).  
+- Filtra registros por número de série e tipo de peça (ignorando "sprockets").  
+- Gera um dashboard com:  
+  - Horas de uso por peça.  
+  - Datas projetadas para 100% e 120% de desgaste.  
+  - Formatação automática em porcentagem e datas.  
+
+Tecnologias:  
+- VBA (Excel)  
+- Funções avançadas como `XLOOKUP` e manipulação de tabelas dinâmicas.  
+
+Como Usar:  
+1. Execute `Passo1()` para preparar os dados.  
+2. Insira os números de série das máquinas na planilha `Filtro`.  
+3. Execute `Passo2()` para gerar o dashboard.  
+
+Notas:  
+- Desenvolvido para otimizar análises de manutenção preventiva.  
+- Depende de uma estrutura específica de colunas (ajuste conforme necessário).  
