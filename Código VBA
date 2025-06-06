@@ -1,0 +1,399 @@
+
+Sub Atualiza()
+
+Dim ws As Worksheet
+Dim i As Long
+Dim dataTexto As String
+Dim partes() As String
+Dim novaData As String
+Dim wsOrigem As Worksheet
+Dim wsNova As Worksheet
+Dim novaPlanilha As Worksheet
+Dim planilhaExiste As Boolean
+Dim wsBase As Worksheet
+Dim wsFiltro As Worksheet
+Dim wsResultado As Worksheet
+Dim ultimaLinhaBase As Long
+Dim ultimaLinhaFiltro As Long
+Dim dict As Object
+Dim maquinasFiltro As Object
+Dim chave As Variant
+Dim numSerie As String
+Dim peca As String
+Dim uso As Double
+Dim dataRegistro As Date
+Dim linhaAtual As Long
+Dim ultimaLinhaResultado As Long
+Dim dataLimite As Date
+Dim hoje As Date
+Dim dataD As Variant
+Dim wsDashboard As Worksheet
+Dim ultimaLinha As Long
+Dim tabelaRange As Range
+Dim wsBancoDeDados As Worksheet
+Dim ultimaLinhaDados As Long
+Dim ultimaColunaDados As Long
+Dim rngDados As Range
+
+    'Copia máquinas
+    Sheets("Medição").Select
+    Range("A2").Select
+    Range(Selection, Selection.End(xlDown)).Select
+    Selection.Copy
+    Range("AB2").Select
+    ActiveSheet.Paste
+
+    'Exclui dashboard
+    For Each ws In ThisWorkbook.Sheets
+        If ws.Name = "Dashboard" Then
+            planilhaExiste = True
+            Exit For
+        End If
+    Next ws
+     If planilhaExiste Then
+        Application.DisplayAlerts = False
+        ThisWorkbook.Sheets("Dashboard").Delete
+        Application.DisplayAlerts = True
+    Else
+
+    Sheets("Base WMS").Select
+    Set ws = ThisWorkbook.Sheets("Base WMS")
+
+    'Acertar data
+
+    colunas = Array("W", "AZ", "BA")
+    Columns("W:W").Select
+    Selection.TextToColumns Destination:=Range("W1"), DataType:=xlDelimited, _
+        TextQualifier:=xlDoubleQuote, ConsecutiveDelimiter:=False, Tab:=True, _
+        Semicolon:=False, Comma:=False, Space:=False, Other:=False, FieldInfo _
+        :=Array(1, 3), TrailingMinusNumbers:=True
+    Columns("AZ:AZ").Select
+    Selection.TextToColumns Destination:=Range("AZ1"), DataType:=xlDelimited, _
+        TextQualifier:=xlDoubleQuote, ConsecutiveDelimiter:=False, Tab:=True, _
+        Semicolon:=False, Comma:=False, Space:=False, Other:=False, FieldInfo _
+        :=Array(1, 3), TrailingMinusNumbers:=True
+    Columns("BA:BA").Select
+    Selection.TextToColumns Destination:=Range("BA1"), DataType:=xlDelimited, _
+        TextQualifier:=xlDoubleQuote, ConsecutiveDelimiter:=False, Tab:=True, _
+        Semicolon:=False, Comma:=False, Space:=False, Other:=False, FieldInfo _
+        :=Array(1, 3), TrailingMinusNumbers:=True
+
+    'Criando planilha base, e mitigando dados
+
+    Set wsOrigem = ThisWorkbook.Sheets("Base WMS")
+    Set wsNova = Sheets.Add(After:=ActiveSheet)
+    wsNova.Name = "Base"
+    Sheets("Base WMS").Select
+    Range("B:B,H:H,J:J,K:K,W:W,AK:AK,AL:AL,AM:AM,AX:AX,AZ:AZ,BA:BA,BB:BB,BC:BC").Select
+    Selection.Copy
+    Sheets("Base").Select
+    ActiveSheet.Paste
+
+    'Cria planilha filtro
+
+    Set novaPlanilha = Sheets.Add(After:=ActiveSheet)
+    novaPlanilha.Name = "Filtro"
+    novaPlanilha.Range("A1").Value = "Escreva as máquinas abaixo"
+    
+    End If
+
+    'Filtragem
+
+    Sheets("Filtro").Select
+
+    Sheets("Medição").Select
+    Range("AB2").Select
+    Range(Selection, Selection.End(xlDown)).Select
+    Selection.Copy
+    Sheets("Filtro").Select
+    Range("A2").Select
+    ActiveSheet.Paste
+
+    Set wsBase = ThisWorkbook.Sheets("Base")
+    Set wsFiltro = ThisWorkbook.Sheets("Filtro")
+
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    ThisWorkbook.Sheets("Resultado filtrado").Delete
+    On Error GoTo 0
+    Application.DisplayAlerts = True
+
+    Set wsResultado = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+    wsResultado.Name = "Resultado filtrado"
+    Set dict = CreateObject("Scripting.Dictionary")
+    Set maquinasFiltro = CreateObject("Scripting.Dictionary")
+
+    ultimaLinhaFiltro = wsFiltro.Cells(wsFiltro.Rows.Count, "A").End(xlUp).Row
+    For i = 2 To ultimaLinhaFiltro
+        numSerie = Trim(wsFiltro.Cells(i, "A").Value)
+        If Len(numSerie) > 0 Then
+            maquinasFiltro(numSerie) = True
+        End If
+    Next i
+
+    ultimaLinhaBase = wsBase.Cells(wsBase.Rows.Count, "A").End(xlUp).Row
+    For i = 2 To ultimaLinhaBase
+        numSerie = Trim(wsBase.Cells(i, "B").Value)
+        peca = Trim(wsBase.Cells(i, "F").Value)
+
+        If maquinasFiltro.Exists(numSerie) And LCase(peca) <> "sprockets" Then
+            If IsNumeric(wsBase.Cells(i, "D").Value) And IsDate(wsBase.Cells(i, "E").Value) Then
+                uso = wsBase.Cells(i, "D").Value
+                dataRegistro = wsBase.Cells(i, "E").Value
+                chave = numSerie & "|" & peca
+
+                If Not dict.Exists(chave) Then
+                    dict(chave) = i
+                Else
+                    Dim linhaSalva As Long
+                    linhaSalva = dict(chave)
+
+                    If wsBase.Cells(linhaSalva, "E").Value < dataRegistro Then
+                        dict(chave) = i
+
+                    ElseIf wsBase.Cells(linhaSalva, "E").Value = dataRegistro Then
+                        If wsBase.Cells(linhaSalva, "D").Value < uso Then
+                            dict(chave) = i
+                        End If
+                    End If
+                End If
+            End If
+        End If
+    Next i
+
+    wsBase.Rows(1).Copy Destination:=wsResultado.Rows(1)
+    linhaAtual = 2
+
+    For Each chave In dict.Keys
+        wsBase.Rows(dict(chave)).Copy Destination:=wsResultado.Rows(linhaAtual)
+        linhaAtual = linhaAtual + 1
+    Next chave
+
+        ActiveWindow.SmallScroll Down:=-3
+    Range("I2:I1048576,J2:J1048576").Select
+    Range("J2").Activate
+    With Selection
+        .HorizontalAlignment = xlRight
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    Range("A1").Select
+
+    Set wsResultado = ThisWorkbook.Sheets("Resultado filtrado")
+    ultimaLinhaResultado = wsResultado.Cells(wsResultado.Rows.Count, "A").End(xlUp).Row
+    dataLimite = DateAdd("m", -6, Date)
+    hoje = Date
+
+    For i = ultimaLinhaResultado To 2 Step -1
+        dataD = wsResultado.Cells(i, "E").Value
+
+        If (IsDate(dataD) And (dataD < dataLimite Or dataD > hoje)) Then
+            wsResultado.Rows(i).Delete
+        End If
+    Next i
+    
+    Sheets("Medição").Select
+    Range("AB2").Select
+    Range(Selection, Selection.End(xlDown)).Select
+    Selection.Delete Shift:=xlToLeft
+
+    'Dashboard
+    
+    Set wsDashboard = Sheets.Add(After:=ActiveSheet)
+    With wsDashboard
+        .Name = "Dashboard"
+        .Activate
+    End With
+    
+        Range("A1").Value = "Série"
+        Range("B1").Value = "Modelo"
+        Range("C1").Value = "Cliente"
+        Range("D1").Value = "Horas"
+        Range("E1").Value = "Datas"
+        Range("F1").Value = "Bushings (External)"
+        Range("G1").Value = "Bushings (Internal)"
+        Range("H1").Value = "Carrier Rollers"
+        Range("I1").Value = "Idlers"
+        Range("J1").Value = "Track Links"
+        Range("K1").Value = "Track Rollers"
+        Range("L1").Value = "Track Shoes"
+        Range("M1").Value = "Data projetada para 100%"
+        Range("N1").Value = "Data projetada para 120%"
+        Range("O1").Value = "Horas projetadas para 100%"
+        Range("P1").Value = "Horas projetadas para 120%"
+
+    ' Copiar dados do "Resultado filtrado" para "Dashboard"
+    With wsResultado
+        .Range("A2", .Cells(.Rows.Count, "A").End(xlUp)).Copy Destination:=wsDashboard.Range("C2")
+        .Range("B2", .Cells(.Rows.Count, "B").End(xlUp)).Copy Destination:=wsDashboard.Range("A2")
+        .Range("C2", .Cells(.Rows.Count, "C").End(xlUp)).Copy Destination:=wsDashboard.Range("B2")
+        .Range("D2", .Cells(.Rows.Count, "D").End(xlUp)).Copy Destination:=wsDashboard.Range("D2")
+        .Range("E2", .Cells(.Rows.Count, "E").End(xlUp)).Copy Destination:=wsDashboard.Range("E2")
+    End With
+    
+       Sheets("Dashboard").Select
+        Columns("A:E").Select
+    ActiveSheet.Range("$A:$A:$E:$E").RemoveDuplicates Columns:=Array(1, 2, 3, 4), _
+        Header:=xlYes
+
+ Set ws = ActiveSheet
+
+    ultimaLinha = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    If ultimaLinha < 2 Then
+        MsgBox "Não há dados suficientes para criar a tabela (é necessário ao menos o cabeçalho e uma linha de dados).", vbExclamation
+        Exit Sub
+    End If
+    Set tabelaRange = ws.Range("A1:P" & ultimaLinha)
+    With ws.ListObjects.Add(xlSrcRange, tabelaRange, , xlYes)
+        .Name = "TabelaPeça"
+        .TableStyle = ""
+    End With
+
+    Range("F2").Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-4]=Dashboard!RC[-5])*('Resultado filtrado'!C=Dashboard!R1C6),'Resultado filtrado'!C[3],"""")*0.01,"""")"
+    
+    Range("G2").Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-5]=Dashboard!RC[-6])*('Resultado filtrado'!C[-1]=Dashboard!R1C7),'Resultado filtrado'!C[2],"""")*0.01,"""")"
+
+    Range("H2").Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-6]=Dashboard!RC[-7])*('Resultado filtrado'!C[-2]=Dashboard!R1C8),'Resultado filtrado'!C[1],"""")*0.01,"""")"
+    
+    Range("I2").Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-7]=Dashboard!RC[-8])*('Resultado filtrado'!C[-3]=Dashboard!R1C9),'Resultado filtrado'!C[0],"""")*0.01,"""")"
+
+    Range("J2").Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-8]=Dashboard!RC[-9])*('Resultado filtrado'!C[-4]=Dashboard!R1C10),'Resultado filtrado'!C[-1],"""")*0.01,"""")"
+    
+    Range("K2").Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-9]=Dashboard!RC[-10])*('Resultado filtrado'!C[-5]=Dashboard!R1C11),'Resultado filtrado'!C[-2],"""")*0.01,"""")"
+
+    Range("L2").Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-10]=Dashboard!RC[-11])*('Resultado filtrado'!C[-6]=Dashboard!R1C12),'Resultado filtrado'!C[-3],"""")*0.01,"""")"
+
+    Range("M2").Select
+    ActiveCell.Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-11]=Dashboard!RC[-12])*('Resultado filtrado'!C[-7]=Dashboard!R1C6),'Resultado filtrado'!C[-3]),"""")"
+    
+    Range("N2").Select
+    ActiveCell.Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-12]=Dashboard!RC[-13])*('Resultado filtrado'!C[-8]=Dashboard!R1C6),'Resultado filtrado'!C[-3]),"""")"
+    
+    Range("O2").Select
+    ActiveCell.Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-13]=Dashboard!RC[-14])*('Resultado filtrado'!C[-9]=Dashboard!R1C6),'Resultado filtrado'!C[-3]),"""")"
+    
+    Range("P2").Select
+    ActiveCell.Formula2R1C1 = _
+        "=IFERROR(XLOOKUP(1,('Resultado filtrado'!C[-14]=Dashboard!RC[-15])*('Resultado filtrado'!C[-10]=Dashboard!R1C6),'Resultado filtrado'!C[-3]),"""")"
+
+    Cells.Select
+    Selection.Copy
+    Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+        :=False, Transpose:=False
+        
+                Columns("D:D").Select
+    Selection.TextToColumns Destination:=Range("TabelaPeça[[#Headers],[Horas]]") _
+        , DataType:=xlDelimited, TextQualifier:=xlDoubleQuote, _
+        ConsecutiveDelimiter:=False, Tab:=True, Semicolon:=False, Comma:=False _
+        , Space:=False, Other:=False, FieldInfo:=Array(1, 1), _
+        TrailingMinusNumbers:=True
+    Columns("O:O").Select
+    Selection.TextToColumns Destination:=Range( _
+        "TabelaPeça[[#Headers],[Horas projetadas para 100%]]"), DataType:=xlDelimited _
+        , TextQualifier:=xlDoubleQuote, ConsecutiveDelimiter:=False, Tab:=True, _
+        Semicolon:=False, Comma:=False, Space:=False, Other:=False, FieldInfo _
+        :=Array(1, 1), TrailingMinusNumbers:=True
+    Columns("P:P").Select
+    Selection.TextToColumns Destination:=Range( _
+        "TabelaPeça[[#Headers],[Horas projetadas para 120%]]"), DataType:=xlDelimited _
+        , TextQualifier:=xlDoubleQuote, ConsecutiveDelimiter:=False, Tab:=True, _
+        Semicolon:=False, Comma:=False, Space:=False, Other:=False, FieldInfo _
+        :=Array(1, 1), TrailingMinusNumbers:=True
+
+    Sheets("Resultado filtrado").Select
+    ActiveWindow.SelectedSheets.Delete
+    Application.SendKeys "{ENTER}"
+    Sheets("Filtro").Select
+    ActiveWindow.SelectedSheets.Delete
+    Application.SendKeys "{ENTER}"
+    Sheets("Base").Select
+    ActiveWindow.SelectedSheets.Delete
+    Application.SendKeys "{ENTER}"
+
+
+    'Embelezamento
+
+    Sheets("Dashboard").Select
+
+    Range("A1:E1,M1:P1").Select
+    Range("TabelaPeça[[#Headers],[Série]]").Activate
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 65535
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    With Selection.Font
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+    End With
+
+    Range("F1:L1").Select
+    With Selection.Font
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .ThemeColor = xlThemeColorAccent6
+        .TintAndShade = 0.399975585192419
+        .PatternTintAndShade = 0
+    End With
+
+    Range("TabelaPeça[#Headers]").Select
+    Selection.Font.Bold = True
+
+    Columns("F:L").Select
+    Selection.Style = "Percent"
+    Columns("M:N").Select
+    Selection.NumberFormat = "m/d/yyyy"
+
+        Range("F1").Value = "Bucha Ext"
+        Range("G1").Value = "Bucha Int"
+        Range("H1").Value = "Rolete Sup"
+        Range("I1").Value = "Roda Guia"
+        Range("J1").Value = "Elos"
+        Range("K1").Value = "Rolete Inf"
+        Range("L1").Value = "Sapata"
+
+    Columns("A:P").EntireColumn.AutoFit
+
+    'Banco de dados
+
+    Range("A2").Select
+    Range(Selection, Selection.End(xlToRight)).Select
+    Range(Selection, Selection.End(xlDown)).Select
+    Selection.Copy
+    Sheets("Banco de dados").Select
+    Range("A2").Select
+    Selection.End(xlDown).Select
+    Application.SendKeys "{DOWN}"
+    ActiveSheet.Paste
+    
+    Sheets("Medição").Select
+    
+End Sub
+
+
+
+
+
+
